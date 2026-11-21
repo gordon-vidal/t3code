@@ -641,7 +641,10 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "speech-post-processing",
     title: msg("Clean up transcripts"),
     to: "/settings/voice",
-    searchTerms: [msg("speech transcription polish clean provider prompt post-processing")],
+    searchTerms: [
+      msg("speech transcription polish clean provider prompt post-processing"),
+      msg("Include thread context"),
+    ],
   },
   {
     id: "speech-models",

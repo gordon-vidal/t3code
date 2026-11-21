@@ -67,6 +67,7 @@ await Effect.runPromise(
           selection: { start, end: start + fixture.selection.length },
         },
         fixture.cue,
+        "liveContext" in fixture ? fixture.liveContext : undefined,
       );
       for (let sample = 1; sample <= samples; sample++) {
         const previous = baseline.find((row) => row.id === fixture.id && row.sample === sample);

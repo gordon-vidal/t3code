@@ -31,6 +31,8 @@ import type * as NetAddress from "effect/net/NetAddress";
 import * as SpeechService from "./SpeechService.ts";
 import * as CloudSpeech from "./CloudSpeech.ts";
 import * as ServerSettings from "../serverSettings.ts";
+import * as ProjectStoreV2 from "../orchestration-v2/ProjectStore.ts";
+import * as ProjectionStoreV2 from "../orchestration-v2/ProjectionStore.ts";
 import * as TextGeneration from "../textGeneration/TextGeneration.ts";
 import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
 import { speechHttpApiLayer } from "./http.ts";
@@ -51,6 +53,10 @@ const principal = (...scopes: AuthEnvironmentScope[]) =>
 
 const dependencies = Layer.mergeAll(
   Layer.mock(CloudSpeech.CloudSpeech)({}),
+  Layer.mock(ProjectStoreV2.ProjectStoreV2)({}),
+  Layer.mock(ProjectionStoreV2.ProjectionStoreV2)({
+    getThreadSpeechContext: () => Effect.succeed(null),
+  }),
   Layer.mock(ProviderRegistry.ProviderRegistry)({ getProviders: Effect.succeed([]) }),
   Layer.mock(ServerSettings.ServerSettingsService)({
     getSettings: Effect.succeed(DEFAULT_SERVER_SETTINGS),
@@ -416,23 +422,28 @@ effectIt.effect("tells the client why transcript cleanup failed", () =>
     );
     yield* Effect.addFinalizer(() => Effect.promise(dispose));
     const context = yield* Layer.build(Layer.mergeAll(failingCleanup, NodeServices.layer));
-    const response = yield* Effect.promise(() =>
-      handler(
-        new Request("http://localhost/api/voice/post-process", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            options: {
-              speechCustomWords: [],
-              speechPostProcessingPrompt: { mode: "default", customInstructions: "" },
-            },
-            transcript: "um so hello world",
-            draft: { text: "", selection: { start: 0, end: 0 } },
+    const requestCleanup = (threadId?: string) =>
+      Effect.promise(() =>
+        handler(
+          new Request("http://localhost/api/voice/post-process", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              options: {
+                speechCustomWords: [],
+                speechPostProcessingPrompt: { mode: "default", customInstructions: "" },
+              },
+              threadId,
+              transcript: "um so hello world",
+              draft: { text: "", selection: { start: 0, end: 0 } },
+            }),
           }),
-        }),
-        context,
-      ),
-    );
+          context,
+        ),
+      );
+    const withContext = yield* requestCleanup("test-thread");
+    expect(withContext.status).toBe(403);
+    const response = yield* requestCleanup();
     expect(response.ok).toBe(false);
     expect(yield* Effect.promise(() => response.text())).toContain(detail);
   }),

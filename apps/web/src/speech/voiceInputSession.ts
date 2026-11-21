@@ -18,6 +18,7 @@ import type {
   SpeechPostProcessingOptions,
   SpeechStreamText,
   SpeechTranscriptionOptions,
+  ThreadId,
 } from "@t3tools/contracts";
 import { DEFAULT_CLIENT_SETTINGS, EnvironmentInternalError } from "@t3tools/contracts";
 import { resolveSpeechVocabulary } from "@t3tools/shared/speech";
@@ -31,7 +32,7 @@ import {
   createBrowserVoiceInputPlatform,
 } from "./browserVoiceInput";
 import { runEnvironmentSpeech } from "./runEnvironmentSpeech";
-import { bindAudioGrant, readCleanupGrant } from "./voiceConsent";
+import { bindAudioGrant, readCleanupGrant, readCleanupThreadContextGrant } from "./voiceConsent";
 import { msg } from "gt-react";
 import { m } from "../i18n/messages";
 
@@ -47,6 +48,7 @@ type DraftInput = {
 /** What a recording needs from its editor, read once when it starts. */
 export type VoiceRecordingContext = {
   readonly environmentId: EnvironmentId;
+  readonly threadId?: ThreadId | null | undefined;
   readonly projectName: string | null;
   readonly projectWords: SpeechCustomWords;
   readonly clientSettings: ClientSettings;
@@ -127,6 +129,8 @@ export class VoiceInputSession {
           readonly cleanup: SpeechPostProcessingOptions | null;
           readonly cleanupGrant: string | null;
           readonly cleanupPrepared: PreparedConnection | null;
+          readonly threadContextGrant: string | null;
+          readonly threadId: ThreadId | null;
         }
       | undefined;
     const platformInput = {
@@ -141,6 +145,7 @@ export class VoiceInputSession {
         const settings = context.clientSettings;
         const cleanupGrant = context.cleanup ? readCleanupGrant() : null;
         const cleanupEnabled = cleanupGrant !== null;
+        const threadContextGrant = cleanupEnabled ? readCleanupThreadContextGrant() : null;
         const cue = cleanupEnabled && context.cleanupPrepared ? settings.speechCorrectionWord : "";
         const { speechCustomWords, speechHints } = resolveSpeechVocabulary({
           personal: settings.speechCustomWords,
@@ -150,6 +155,8 @@ export class VoiceInputSession {
         recordingPreferences = {
           cleanupGrant,
           cleanupPrepared: context.cleanupPrepared,
+          threadContextGrant,
+          threadId: threadContextGrant !== null ? (context.threadId ?? null) : null,
           cleanup: cleanupEnabled
             ? {
                 speechCustomWords,
@@ -202,13 +209,22 @@ export class VoiceInputSession {
         return Promise.reject(
           new Error(m(msg("The draft's environment is unavailable for transcript cleanup."))),
         );
+      const sendThreadContext =
+        preferences.threadId !== null &&
+        preferences.threadContextGrant !== null &&
+        readCleanupThreadContextGrant() === preferences.threadContextGrant;
       return runEnvironmentSpeech(
         postProcessEnvironmentTranscript(
           preferences.cleanupPrepared,
           transcript,
           cleanupContext(options.draft),
           preferences.cleanup,
-          () => hasAudioConsent() && preferences.cleanupGrant === readCleanupGrant(),
+          () =>
+            hasAudioConsent() &&
+            preferences.cleanupGrant === readCleanupGrant() &&
+            (!sendThreadContext ||
+              readCleanupThreadContextGrant() === preferences.threadContextGrant),
+          sendThreadContext ? preferences.threadId : null,
         ),
         options,
       ).then((result) => result.text);

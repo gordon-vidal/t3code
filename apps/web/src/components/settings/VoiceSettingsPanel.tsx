@@ -76,7 +76,9 @@ import { preferredSpeechLanguages } from "../../speech/preferredSpeechLanguages"
 import {
   chooseAudioDestination,
   chooseTranscriptCleanup,
+  chooseTranscriptCleanupThreadContext,
   useCleanupGrant,
+  useCleanupThreadContextGrant,
 } from "../../speech/voiceConsent";
 import { updateClientSettings, useClientSettings } from "../../hooks/useSettings";
 import { runEnvironmentSpeech } from "../../speech/runEnvironmentSpeech";
@@ -1322,6 +1324,7 @@ export function VoiceSettingsPanel() {
   const setting = useSearchableSetting();
   const gt = useGT();
   const cleanupEnabled = useCleanupGrant() !== null;
+  const cleanupThreadContextEnabled = useCleanupThreadContextGrant() !== null;
   const settings = useClientSettings();
   const settingsScope = useOptionalSettingsScope();
   const destination = useVoiceTranscriptionDestination();
@@ -1815,6 +1818,21 @@ export function VoiceSettingsPanel() {
             />
           }
         />
+        {cleanupEnabled ? (
+          <SettingsRow
+            title={gt("Include thread context")}
+            description={gt(
+              "Off by default. Also sends the project and thread title, branch, recent file paths, and code terms from recent messages to the cleanup model.",
+            )}
+            control={
+              <Switch
+                aria-label={gt("Include thread context")}
+                checked={cleanupThreadContextEnabled}
+                onCheckedChange={chooseTranscriptCleanupThreadContext}
+              />
+            }
+          />
+        ) : null}
         {cleanupEnabled ? (
           <SettingsRow
             title={gt("Instructions")}

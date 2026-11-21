@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as SchemaTransformation from "effect/SchemaTransformation";
-import { TrimmedNonEmptyString } from "./baseSchemas.ts";
+import { ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
 
 export const CloudSpeechApiKey = TrimmedNonEmptyString.check(
   Schema.isMaxLength(4096),
@@ -324,6 +324,7 @@ export const EnvironmentSpeechPostProcessingRequest = Schema.Struct({
     text: Schema.String.check(Schema.isMaxLength(100_000)),
     selection: Schema.Struct({ start: Schema.Number, end: Schema.Number }),
   }),
+  threadId: Schema.optionalKey(ThreadId),
 });
 export type EnvironmentSpeechPostProcessingRequest =
   typeof EnvironmentSpeechPostProcessingRequest.Type;

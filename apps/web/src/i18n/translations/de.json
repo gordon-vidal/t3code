@@ -12460,5 +12460,7 @@
   "b7df38b7d8792d78": "Leitfaden öffnen",
   "9e91e9a77b664e4e": "Review-Leitfaden konnte nicht gestartet werden",
   "d8aaf932f90429c4": "Diesen Befehl an den Anfang der Warteschlange verschieben ({shortcut})",
-  "425ab15036aec8a4": "Diesen Befehl an den Anfang der Warteschlange verschieben"
+  "425ab15036aec8a4": "Diesen Befehl an den Anfang der Warteschlange verschieben",
+  "39955ad471fdf975": "Thread-Kontext einbeziehen",
+  "665c80421a5d70ca": "Standardmäßig aus. Sendet außerdem den Projekt- und Thread-Titel, den Branch, aktuelle Dateipfade und Code-Begriffe aus letzten Nachrichten an das Bereinigungsmodell."
 }

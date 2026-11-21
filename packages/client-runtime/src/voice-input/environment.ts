@@ -12,6 +12,7 @@ import type {
   SpeechModelUnloadTimeout,
   SpeechTranscriptionOptions,
   SpeechPostProcessingOptions,
+  ThreadId,
 } from "@t3tools/contracts";
 
 import * as RemoteEnvironmentAuthorization from "../authorization/service.ts";
@@ -275,6 +276,7 @@ export const postProcessEnvironmentTranscript = (
   },
   options: SpeechPostProcessingOptions,
   canSend: () => boolean,
+  threadId?: ThreadId | null,
 ) =>
   request({
     group: "voice",
@@ -284,7 +286,10 @@ export const postProcessEnvironmentTranscript = (
     canSend,
     timeoutMs: INFERENCE_OR_DOWNLOAD_TIMEOUT_MS,
     run: ({ client, headers }) =>
-      client.postProcess({ headers, payload: { transcript, draft, options } }),
+      client.postProcess({
+        headers,
+        payload: { transcript, draft, options, ...(threadId ? { threadId } : {}) },
+      }),
   });
 
 export const updateEnvironmentSpeechAcceleration = (

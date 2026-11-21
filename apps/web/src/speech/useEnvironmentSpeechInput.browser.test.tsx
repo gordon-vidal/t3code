@@ -11,6 +11,7 @@ import {
   DEFAULT_SERVER_SETTINGS,
   EnvironmentId,
   type EnvironmentSpeechModel,
+  ThreadId,
   type ProjectId,
   type SpeechCustomWords,
   type SpeechPostProcessingOptions,
@@ -26,6 +27,7 @@ import { useEnvironmentSpeechInput } from "./useEnvironmentSpeechInput";
 import {
   chooseAudioDestination,
   chooseTranscriptCleanup,
+  chooseTranscriptCleanupThreadContext,
   bindAudioGrant,
   pendingCloudAudioChoice,
 } from "./voiceConsent";
@@ -168,10 +170,12 @@ vi.mock("@t3tools/client-runtime/voice-input", async (importOriginal) => ({
     transcript: string,
     draft: unknown,
     options: SpeechPostProcessingOptions,
+    _canSend: () => boolean,
+    threadId?: ThreadId | null,
   ) =>
     Effect.sync(() => {
       mocks.cleanupCalls.push(prepared.environmentId);
-      mocks.cleanupDraft(draft);
+      mocks.cleanupDraft(draft, threadId);
       mocks.cleanupOptions.push(options);
       return { text: `Cleaned ${transcript}` };
     }),
@@ -231,6 +235,7 @@ function setup(options: { readonly destination?: string | null } = {}) {
   setDestination(options.destination ?? null);
   if (!options.destination) localStorage.removeItem("t3code:voice-audio-grant:v1");
   chooseTranscriptCleanup(false);
+  chooseTranscriptCleanupThreadContext(false);
   mocks.primaryEnvironmentId = "primary-env";
   mocks.connected = new Set(["primary-env", THREAD_ENV, "env-a", "env-b"]);
   mocks.voiceCapable = new Set(["primary-env", THREAD_ENV, "env-a", "env-b"]);
@@ -278,6 +283,7 @@ function Probe(props: {
 }) {
   const value = useEnvironmentSpeechInput({
     environmentId: THREAD_ENV as EnvironmentId,
+    threadId: ThreadId.make("voice-thread"),
     projectId: props.projectId as ProjectId | undefined,
     projectName: props.projectName,
     cleanup: props.cleanup,
@@ -888,20 +894,34 @@ it("cleans text on a cloud-only draft environment only while cleanup is separate
   await act(() => mocks.voice.stop());
   expect(mocks.transcribeCalls).toEqual(["env-a"]);
   expect(mocks.cleanupCalls).toEqual([THREAD_ENV]);
-  expect(mocks.cleanupDraft).toHaveBeenCalledExactlyOnceWith({
-    text: nearby,
-    selection: { start: nearby.length, end: nearby.length },
-  });
+  expect(mocks.cleanupDraft).toHaveBeenCalledExactlyOnceWith(
+    {
+      text: nearby,
+      selection: { start: nearby.length, end: nearby.length },
+    },
+    null,
+  );
   expect(mocks.committed).toHaveBeenCalledExactlyOnceWith(
     mocks.draft + " Cleaned dictated",
     expect.anything(),
   );
 
+  chooseTranscriptCleanupThreadContext(true);
+  await act(() => mocks.voice.start());
+  await act(() => mocks.voice.stop());
+  expect(mocks.cleanupDraft).toHaveBeenLastCalledWith(expect.anything(), "voice-thread");
+
+  await act(() => mocks.voice.start());
+  chooseTranscriptCleanupThreadContext(false);
+  chooseTranscriptCleanupThreadContext(true);
+  await act(() => mocks.voice.stop());
+  expect(mocks.cleanupDraft).toHaveBeenLastCalledWith(expect.anything(), null);
+
   await act(() => mocks.voice.start());
   chooseTranscriptCleanup(false);
   await screen.rerender(<Probe />);
   await act(() => mocks.voice.stop());
-  expect(mocks.cleanupCalls).toHaveLength(1);
+  expect(mocks.cleanupCalls).toHaveLength(3);
 });
 
 // The settings model test must show what the model heard, not what a provider rewrote.

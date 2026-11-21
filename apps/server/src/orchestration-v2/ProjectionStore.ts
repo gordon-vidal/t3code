@@ -558,6 +558,22 @@ export interface ProjectionStoreV2Shape {
     threadId: ThreadId,
     options?: { readonly includeShownByLiveFork?: boolean },
   ) => Effect.Effect<ReadonlyArray<string>, ProjectionStoreV2Error>;
+  readonly getThreadSpeechContext: (
+    threadId: ThreadId,
+    options?: {
+      readonly messageLimit?: number;
+      readonly checkpointLimit?: number;
+    },
+  ) => Effect.Effect<
+    {
+      readonly projectId: ProjectId;
+      readonly threadTitle: string;
+      readonly branch: string | null;
+      readonly messages: ReadonlyArray<Pick<OrchestrationV2ConversationMessage, "role" | "text">>;
+      readonly checkpoints: ReadonlyArray<Pick<OrchestrationV2Checkpoint, "files">>;
+    } | null,
+    ProjectionStoreV2Error
+  >;
   readonly getThreadHistoryPage: (
     threadId: ThreadId,
     cursor: string,
@@ -6985,6 +7001,66 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       (effect, threadId) => effect.pipe(Effect.mapError(controlReadError(threadId))),
     );
 
+    const getThreadSpeechContext: ProjectionStoreV2Shape["getThreadSpeechContext"] = Effect.fn(
+      "ProjectionStore.getThreadSpeechContext",
+    )(
+      function* (threadId, options) {
+        const messageLimit = Math.max(0, options?.messageLimit ?? 15);
+        const checkpointLimit = Math.max(0, options?.checkpointLimit ?? 10);
+        const threadRows = yield* sql<PayloadRow>`
+          SELECT payload_json
+          FROM orchestration_v2_projection_threads
+          WHERE thread_id = ${threadId} AND deleted_at IS NULL
+          LIMIT 1
+        `;
+        const threadRow = threadRows[0];
+        if (!threadRow) return null;
+        const thread = yield* decodeThreadPayload(threadRow.payload_json);
+        const [messages, checkpointRows] = yield* Effect.all([
+          getTimelinePage(threadId, {
+            view: "messages",
+            beforePosition: Number.POSITIVE_INFINITY,
+            limit: messageLimit,
+          }).pipe(
+            Effect.map(({ items }) =>
+              items.flatMap(({ item }) =>
+                item.type === "user_message" || item.type === "assistant_message"
+                  ? [
+                      {
+                        role:
+                          item.type === "user_message" ? ("user" as const) : ("assistant" as const),
+                        text: item.text,
+                      },
+                    ]
+                  : [],
+              ),
+            ),
+          ),
+          checkpointLimit > 0
+            ? sql<PayloadRow>`
+                SELECT payload_json
+                FROM orchestration_v2_projection_checkpoints
+                WHERE thread_id = ${threadId} AND status = 'ready'
+                ORDER BY captured_at DESC, ordinal_within_scope DESC
+                LIMIT ${checkpointLimit}
+              `
+            : Effect.succeed([] as ReadonlyArray<PayloadRow>),
+        ]);
+        const checkpointsDesc = yield* decodeRows(
+          decodeCheckpointPayload,
+          threadId,
+        )(checkpointRows);
+        return {
+          projectId: thread.projectId,
+          threadTitle: thread.title,
+          branch: thread.branch,
+          messages,
+          checkpoints: [...checkpointsDesc].reverse().map(({ files }) => ({ files })),
+        };
+      },
+      (effect, threadId) => effect.pipe(Effect.mapError(controlReadError(threadId))),
+    );
+
     const getThreadRecords: ProjectionStoreV2Shape["getThreadRecords"] = (
       threadId,
       fields,
@@ -9888,6 +9964,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       searchThread: readOnReader(searchThread),
       searchThreadStream,
       getThreadAttachmentIds: readOnReader(getThreadAttachmentIds),
+      getThreadSpeechContext: readOnReader(getThreadSpeechContext),
     } satisfies ProjectionStoreV2Shape;
   }),
 );

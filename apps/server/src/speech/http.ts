@@ -2,6 +2,7 @@ import { decodeSpeechPcmRequest } from "@t3tools/shared/speech";
 import {
   AuthFilesystemReadScope,
   AuthOrchestrationOperateScope,
+  AuthOrchestrationReadScope,
   AuthSettingsWriteScope,
   type AuthEnvironmentScope,
   EnvironmentAuthenticatedPrincipal,
@@ -234,6 +235,7 @@ export const speechHttpApiLayer = HttpApiBuilder.group(
         "postProcess",
         Effect.fn("environment.voice.postProcess")(function* (args) {
           yield* guard(args.endpoint.name);
+          if (args.payload.threadId) yield* requireEnvironmentScope(AuthOrchestrationReadScope);
           return yield* postProcessing
             .process(args.payload)
             .pipe(

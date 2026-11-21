@@ -11806,6 +11806,15 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         "reply three",
       ]);
       const expected = ["prompt one", "reply one", "prompt three", "reply three", "fork"];
+      for (const threadId of [sourceThreadId, targetThreadId]) {
+        const context = yield* projectionStore.getThreadSpeechContext(threadId, {
+          messageLimit: 3,
+        });
+        assert.deepEqual(
+          context?.messages.map((message) => message.text),
+          ["reply one", "prompt three", "reply three"],
+        );
+      }
       const target = yield* projectionStore.getThreadProjection(targetThreadId);
       assert.deepEqual(visibleTexts(target.visibleTurnItems), expected);
       const page = yield* projectionStore.getTimelinePage(targetThreadId, {

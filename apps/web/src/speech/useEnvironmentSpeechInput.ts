@@ -8,13 +8,18 @@ import {
   voiceInputBlocksSubmission,
 } from "@t3tools/client-runtime/voice-input";
 import type { PreparedConnection } from "@t3tools/client-runtime/connection";
-import { AuthOrchestrationOperateScope, CLOUD_SPEECH_LABELS } from "@t3tools/contracts";
+import {
+  AuthOrchestrationOperateScope,
+  AuthOrchestrationReadScope,
+  CLOUD_SPEECH_LABELS,
+} from "@t3tools/contracts";
 import type {
   EnvironmentId,
   EnvironmentSpeechModel,
   EnvironmentSpeechStatus,
   ProjectId,
   SpeechBenchmarkTier,
+  ThreadId,
 } from "@t3tools/contracts";
 import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import { chooseSetupSpeechModel } from "@t3tools/shared/speech";
@@ -83,6 +88,8 @@ type HookInput = {
   /** The draft's project: its vocabulary on that environment and its name become recognition hints. */
   readonly projectId?: ProjectId | null | undefined;
   readonly projectName?: string | null | undefined;
+  /** The active thread: used on the server to enrich optional transcript cleanup with live context. */
+  readonly threadId?: ThreadId | null | undefined;
   readonly ownerKey: string;
   readonly disabled?: boolean | undefined;
   /**
@@ -172,6 +179,9 @@ export function useEnvironmentSpeechInput(input: HookInput) {
     .capabilities;
   const originatingConnection = Option.getOrNull(usePreparedConnection(input.environmentId));
   const canCleanUp = useEnvironmentScope(input.environmentId, AuthOrchestrationOperateScope);
+  const contextThreadId = useEnvironmentScope(input.environmentId, AuthOrchestrationReadScope)
+    ? input.threadId
+    : null;
   const cleanupPrepared =
     canCleanUp &&
     (draftCapabilities?.voiceTranscription || draftCapabilities?.cloudVoiceTranscription)
@@ -222,10 +232,24 @@ export function useEnvironmentSpeechInput(input: HookInput) {
     submit: (text: string) => void;
     text?: string;
   } | null>(null);
-  const latestRef = useRef({ input, clientSettings, cleanupPrepared, projectWords, session });
+  const latestRef = useRef({
+    input,
+    contextThreadId,
+    clientSettings,
+    cleanupPrepared,
+    projectWords,
+    session,
+  });
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- publishes committed props before an async completion can read them through the session
   useLayoutEffect(() => {
-    latestRef.current = { input, clientSettings, cleanupPrepared, projectWords, session };
+    latestRef.current = {
+      input,
+      contextThreadId,
+      clientSettings,
+      cleanupPrepared,
+      projectWords,
+      session,
+    };
   });
   const mountedRef = useRef(false);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- abandons this editor's pending work, and a recording that cannot outlive it, on unmount or a destination change
@@ -330,6 +354,7 @@ export function useEnvironmentSpeechInput(input: HookInput) {
       const current = latestRef.current;
       return {
         environmentId: current.input.environmentId,
+        threadId: current.contextThreadId ?? null,
         projectName: current.input.projectName ?? null,
         projectWords: current.projectWords,
         clientSettings: current.clientSettings,

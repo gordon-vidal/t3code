@@ -146,6 +146,10 @@ sent to it. Use the built-in instructions or write your own, press **Skip**
 while cleanup runs to insert the raw transcript, and if cleanup fails the raw
 transcript is inserted.
 
+Enable **Include thread context** on this device to also share the project and
+thread titles, branch, recent file paths, and terms from recent messages with
+the cleanup model. You can turn it off and keep transcript cleanup enabled.
+
 Cleanup uses the environment's text generation model unless you pick a
 **Cleanup model** for that environment, for example a cheaper or faster one.
 It can be a text generator instead of a coding agent; see

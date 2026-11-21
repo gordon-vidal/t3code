@@ -12455,5 +12455,7 @@
   "b7df38b7d8792d78": "Abrir guía",
   "9e91e9a77b664e4e": "No se pudo iniciar una guía de revisión",
   "d8aaf932f90429c4": "Mover este comando al principio de la cola ({shortcut})",
-  "425ab15036aec8a4": "Mover este comando al principio de la cola"
+  "425ab15036aec8a4": "Mover este comando al principio de la cola",
+  "39955ad471fdf975": "Incluir contexto del hilo",
+  "665c80421a5d70ca": "Desactivado por defecto. También envía el título del proyecto y del hilo, la rama, las rutas de archivos recientes y los términos de código de mensajes recientes al modelo de limpieza."
 }
